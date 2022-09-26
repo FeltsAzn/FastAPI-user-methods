@@ -1,0 +1,18 @@
+version: '2'
+
+services:
+  app:
+    build: .
+    container_name: fastapi-app
+    network_mode: host
+    environment:
+      - DATABASE_URL=
+    port:
+      - "8080:000"
+    command:
+      - bash -c "uvicorn app:app"
+    env_file:
+      - .env
+    volumes:
+      -
+
