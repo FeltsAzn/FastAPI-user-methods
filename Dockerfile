@@ -1,11 +1,8 @@
 FROM python:3.10.6-slim
-
-ENV PYTHONUNBUFFERED 1
-
-EXPOSE 8080
+#ENV PYTHONUNBUFFERED 1
 WORKDIR /app
+COPY . .
+RUN apt-get clean && apt-get update
+RUN python3 -m pip install -r requirements.txt
+EXPOSE 8080
 
-COPY . /app
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-CMD ['bash', '-c', 'uvicorn', 'app:app', '--port 8080']
