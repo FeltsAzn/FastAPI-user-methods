@@ -21,6 +21,7 @@ def check_auth_token(token: str, database=Depends(connection_db)):
 
 
 def token_time_validity(auth_token_time: datetime.now()):
+    """Check time for token in database"""
     print(type(auth_token_time))
     time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if auth_token_time[:10] == time_now[:10] and auth_token_time[11:13] == time_now[11:13]:

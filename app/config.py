@@ -9,3 +9,5 @@ root_dir = dir_path[:-3]
 config = Config(f'{root_dir}.env')
 DATABASE_URL = config('DATABASE', cast=str)
 SECRET_KEY = config('SECRET_KEY', cast=Secret)
+JWT_KEY = config('JWT_KEY', cast=str)
+ALGORITHM = config('JWT_ALGORITHM', cast=str)

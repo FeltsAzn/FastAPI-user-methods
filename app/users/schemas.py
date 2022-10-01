@@ -17,7 +17,7 @@ class CreateUserForm(BaseModel):
 
     @validator('email')
     def check_mail(cls, mail):
-        if '@' not in mail:
+        if '@' not in mail and ' ' in mail:
             raise ValueError('Invalid email!')
         return mail
 
