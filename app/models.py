@@ -13,7 +13,7 @@ class User(Base):
     email = Column(String)
     password = Column(String)
     nickname = Column(String)
-    created_date = Column(String, default=datetime.now())
+    created_date = Column(String, default=str(datetime.now()))
 
 
 class AuthToken(Base):
@@ -22,5 +22,5 @@ class AuthToken(Base):
     id = Column(Integer, primary_key=True)
     token = Column(String)
     user_id = Column(Integer)
-    created_date = Column(String, default=datetime.now())
+    created_date = Column(String, default=str(datetime.now()))
 

@@ -6,6 +6,7 @@ from app.models import User, AuthToken
 from app.utils import get_password_hash, get_session_token
 from app.auth import check_auth_token
 from app.db_methods.methods import get_session
+from sqlalchemy import select
 
 router = APIRouter()
 
@@ -15,54 +16,69 @@ async def index():
     return {'Docs': 'http://127.0.0.1:8000/docs'}
 
 
-@router.post('/user/login', name='login to service')
+@router.post('/user/login', name='login to service', status_code=202)
 async def login(user_form: UserLoginForm = Body(..., embed=True), database=Depends(get_session)):
     """Login to user account"""
-    async with database() as session:
-        user = await session.query(User, AuthToken).join(AuthToken, AuthToken.user_id == User.user_id).filter(
-            User.email == user_form.email).one_or_none()
-        # TODO доделать запрос к бд
-        if not user or await get_password_hash(user_form.password) != user.password:
+    async with database as session:
+        query = select(User).where(User.email == user_form.email)
+        result = await database.execute(query)
+        user = result.scalar()
+        if user is None or await get_password_hash(user_form.password) != user.password:
             return {'error': 'Email or password invalid'}
 
-        # user_token = database.session.query(AuthToken).filter(AuthToken.user_id == user.user_id).one_or_none()
-        if user.token is not None:
-            # return {'status':'Account already authorized'})
-            return {'session_token': f'{user.token}'}
+        q = select(AuthToken).where(AuthToken.user_id == user.user_id)
+        res = await database.execute(q)
+        user_token = res.scalar()
 
-        session_token = AuthToken(token=get_session_token(user.user_id), user_id=user.user_id)
-        await session.add(session_token)
-        await session.commit()
-        return {'session_token': f'{session_token.token}'}
+        session_token = AuthToken(token=await get_session_token(user.user_id), user_id=user.user_id)
 
-
-@router.post('/user/logout', name='logout from service')
-async def logout(token: AuthToken = Depends(check_auth_token), database=Depends(get_session)):
-    """Removing a user from the database by authorization token (to protect against removal from outside)"""
-    async with database.begin() as session:
-        user = await session.query(User).filter(User.user_id == token.user_id).one()
-        email = user.email
+        if user_token.token is not None:
+            try:
+                session.delete(user_token)
+                await session.commit()
+            except Exception as _ex:
+                raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
+            else:
+                return {'session_token': f'{session_token.token}'}
         try:
-            await session.delete(token)
+            session.add(session_token)
+            await session.commit()
         except Exception as _ex:
-            await session.rollback()
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
         else:
+            return {'session_token': f'{session_token.token}'}
+
+
+@router.post('/user/logout', name='logout from service', status_code=202)
+async def logout(token: AuthToken = Depends(check_auth_token), database=Depends(get_session)):
+    """Removing a user from the database by authorization token (to protect against removal from outside)"""
+    async with database as session:
+        query = select(User).where(User.user_id == token.user_id)
+        result = await database.execute(query)
+        user = result.scalar()
+        email = user.email
+        try:
+            session.delete(token)
             await session.commit()
+        except Exception as _ex:
+            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
+        else:
             return {f'user {email}: Logout'}
 
 
 @router.post('/user/info')
 async def get_user(token: AuthToken = Depends(check_auth_token), database=Depends(get_session)):
     """Getting user information by his token"""
-    async with database.begin() as session:
-        user = await session.query(User).filter(User.user_id == token.user_id).one_or_none()
+    async with database:
+        query = select(User).where(User.user_id == token.user_id)
+        result = await database.execute(query)
+        user = result.scalar()
         if user:
             return {'id': user.user_id, 'email': user.email, 'nickname': user.nickname}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 
 
-@router.post('/user/create', name='user:create', response_model_exclude_unset=True)
+@router.post('/user/create', name='user:create', response_model_exclude_unset=True, status_code=201)
 async def create_user(user: CreateUserForm = Body(..., embed=True), database=Depends(get_session)):
     """To generate the correct password, the following must be used:
     1 digit,
@@ -70,9 +86,11 @@ async def create_user(user: CreateUserForm = Body(..., embed=True), database=Dep
     1 small letter,
     Password length: from 8 to 20 characters,
     Use only latin letters"""
-    async with database.begin() as session:
-
-        exists_user = await session.query(User.user_id).filter(User.email == user.email).one_or_none()
+    async with database as session:
+        query = select(User).where(User.email == user.email)
+        result = await database.execute(query)
+        exists_user = result.scalar()
+        print(f'************************{exists_user}***********************')
         if exists_user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Email already exists')
 
@@ -80,24 +98,25 @@ async def create_user(user: CreateUserForm = Body(..., embed=True), database=Dep
             email=user.email,
             password=await get_password_hash(user.password),
             nickname=user.nickname)
-
+        print(f'************************{new_user}***********************')
         try:
-            await session.add(new_user)
+            session.add(new_user)
+            await session.commit()
         except Exception as _ex:
-            await session.rollback()
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
         else:
-            await session.commit()
             return {'User': f'Created user {user.email}'}
 
 
-@router.post('/user/update', response_model_exclude_unset=True)
+@router.put('/user/update', response_model_exclude_unset=True)
 async def update_user(new_user: UpdateUserForm, old_pwd: str = Body(..., embed=True),
                       token: AuthToken = Depends(check_auth_token), database=Depends(get_session)):
     """Update account information. The correctness of the password and email address is also checked.
     Parameters are optional, can be changed by choice"""
-    async with database.begin() as session:
-        user = await session.query(User).filter(User.user_id == token.user_id).one()
+    async with database as session:
+        query = select(User).where(User.user_id == token.user_id)
+        result = await database.execute(query)
+        user = result.scalar()
         if user.password == await get_password_hash(old_pwd):
             if new_user.email:
                 user.email = new_user.email
@@ -106,33 +125,35 @@ async def update_user(new_user: UpdateUserForm, old_pwd: str = Body(..., embed=T
             if new_user.nickname:
                 user.nickname = new_user.nickname
             try:
-                await session.add(user)
+                session.add(user)
+                await session.commit()
             except Exception as _ex:
-                await session.rollback()
                 raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
             else:
-                await session.commit()
                 return {'status': "Successfully"}
         return {'error': 'Wrong old password!'}
 
 
-@router.post('/user/delete')
+@router.delete('/user/delete', status_code=202)
 async def delete_user(old_pwd: str = Body(..., embed=True), token: AuthToken = Depends(check_auth_token),
                       database=Depends(get_session)):
     """Removing a user from the database by authorization token (to protect against removal from outside)"""
-    async with database.begin() as session:
-        user = await session.query(User).filter(User.user_id == token.user_id).one()
-        if user:
+    async with database as session:
+        query = select(User).where(User.user_id == token.user_id)
+        result = await database.execute(query)
+        user = result.scalar()
+        if user is not None:
             email = user.email
             if await get_password_hash(old_pwd) == user.password:
                 try:
-                    await session.delete(token)
-                    await session.delete(user)
+                    session.delete(token)
+                    session.delete(user)
+                    await session.commit()
                 except Exception as _ex:
-                    await session.rollback()
                     raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
                 else:
-                    await session.commit()
                     return {f'user {email}: Deleted'}
+
             return {'error': 'Wrong old password!'}
+
         return {'answer': 'This user does not exist'}
