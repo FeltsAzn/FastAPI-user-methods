@@ -1,32 +1,27 @@
-from app.models import connection_db
+from app.config import DATABASE_URL
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from contextlib import asynccontextmanager
+from fastapi import HTTPException
+from starlette import status
 
 
-class Database:
-    def __init__(self,):
-        self.session = connection_db()
+def async_session_generator():
+    engine = create_async_engine(DATABASE_URL, echo=True, future=True)
+    async_session = sessionmaker(bind=engine.connect(), class_=AsyncSession)
 
-    def add(self, table):
-        try:
-            self.session.add(table)
+    return async_session
 
-        except Exception as _ex:
-            self.session.rollback()
-            raise _ex
-        else:
-            self.session.commit()
-            return True
-        finally:
-            self.session.close()
 
-    def delete(self, table):
-        try:
-            self.session.delete(table)
-        except Exception as _ex:
-            self.session.rollback()
-            raise _ex
-        else:
-            self.session.commit()
-            return True
-        finally:
-            self.session.close()
+@asynccontextmanager
+async def get_session():
+    try:
+        async_session = async_session_generator()
 
+        async with async_session() as session:
+            yield session
+    except Exception as _ex:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
+    finally:
+        await session.close()

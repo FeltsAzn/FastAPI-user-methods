@@ -1,19 +1,9 @@
 from datetime import datetime
-from sqlalchemy import create_engine
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import sessionmaker
-from app.config import DATABASE_URL
 from sqlalchemy.ext.declarative import declarative_base
 
 
 Base = declarative_base()
-
-
-def connection_db():
-    engine = create_engine(DATABASE_URL, echo=False)
-    session = sessionmaker(bind=engine.connect())
-    s = session()
-    return s
 
 
 class User(Base):
