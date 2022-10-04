@@ -1,10 +1,9 @@
 FROM python:3.10.6-slim
-ENV PYTHONUNBUFFERED 1
-COPY ./requirements.txt .
+#ENV PYTHONUNBUFFERED 1
 COPY . .
-RUN apt-get clean && apt-get update
-RUN apt add postgresql-dev gcc python3-dev musl-dev
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
-EXPOSE 8080
+WORKDIR .
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
+EXPOSE 8000
 
-CMD ['uvicorn', 'app.main:app', '--port', '8080']
+CMD ['uvicorn', 'app.main:app', '--host', '0.0.0.0']
