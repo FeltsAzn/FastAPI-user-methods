@@ -14,15 +14,14 @@ class Database:
     async def async_session_generator():
         engine = create_async_engine(DATABASE_URL, echo=False, future=True)
         async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-        return async_session
+        return async_session()
 
-    async def query(self, table, first_arg, second_arg):
-        session = await self.async_session_generator()
-        s = session()
+    @staticmethod
+    async def query(session, table, first_arg, second_arg):
         query = select(table).where(first_arg == second_arg)
-        database_response = await s.execute(query)
+        database_response = await session.execute(query)
         result = database_response.scalar()
-        return result, s
+        return result
 
     @staticmethod
     async def add(session, data):
@@ -33,15 +32,11 @@ class Database:
             await session.rollback()
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
         else:
-            await session.close()
             return True
-        finally:
-            await session.close()
 
     @staticmethod
-    async def create(db_response, session, new_data):
+    async def create(session, db_response, new_data):
         if db_response:
-            await session.close()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Email already exists')
         try:
             session.add(new_data)
@@ -50,28 +45,20 @@ class Database:
             await session.rollback()
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
         else:
-            await session.close()
-            return {'User': f'Created user {new_data.email}'}
-        finally:
-            await session.close()
+            return True
 
     @staticmethod
-    async def delete(db_response, session):
-        if db_response:
-            await session.close()
+    async def delete_data(session, db_response):
+        if db_response is None:
             return {'detail': 'This user does not exist'}
         try:
-            session.delete(db_response)
+            await session.delete(db_response)
             await session.commit()
         except Exception as _ex:
             await session.rollback()
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
         else:
-            await session.close()
             return True
-        finally:
-            await session.close()
-
 
 
 

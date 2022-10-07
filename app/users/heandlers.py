@@ -5,7 +5,7 @@ from app.users.schemas import UserLoginForm, CreateUserForm, UpdateUserForm
 from app.models import User, AuthToken
 from app.utils import get_password_hash, get_session_token
 from app.auth import check_auth_token
-from app.db_methods.methods import Database #get_session
+from app.db_methods.methods import Database # get_session
 from sqlalchemy import select
 
 router = APIRouter()
@@ -19,28 +19,23 @@ async def index():
 @router.post('/user/login', name='login to service', status_code=202)
 async def login(user_form: UserLoginForm = Body(..., embed=True), database=Depends(Database)):
     """Login to user account"""
-    user, session = await database.query(User, User.email, user_form.email)
-    if user is None or await get_password_hash(user_form.password) != user.password:
-        return {'error': 'Email or password invalid'}
-    await session.close()
+    start_db_session = database.async_session_generator()
 
-    user_token, auth_session = await database.query(AuthToken, AuthToken.user_id, user.user_id)
+    async with await start_db_session as session:
+        user = await database.query(session, User, User.email, user_form.email)
+        if user is None or await get_password_hash(user_form.password) != user.password:
+            return {'error': 'Email or password invalid'}
 
-    session_token = AuthToken(token=await get_session_token(user.user_id), user_id=user.user_id)
+        old_user_token = await database.query(session, AuthToken, AuthToken.user_id, user.user_id)
 
-    if user_token.token is not None:
+        new_session_token = AuthToken(token=await get_session_token(user.user_id), user_id=user.user_id)
         try:
-            await database.delete(user_token, auth_session)
+            await database.delete_data(session, old_user_token)
+            await database.add(session, new_session_token)
         except Exception as _ex:
             raise _ex
         else:
-            return {'session_token': f'{session_token.token}'}
-    try:
-        await database.add(auth_session, session_token)
-    except Exception as _ex:
-        raise _ex
-    else:
-        return {'session_token': f'{session_token.token}'}
+            return {'session_token': f'{new_session_token.token}'}
 
 
 @router.post('/user/logout', name='logout from service', status_code=202)
@@ -84,13 +79,14 @@ async def create_user(user: CreateUserForm = Body(..., embed=True), database=Dep
         email=user.email,
         password=await get_password_hash(user.password),
         nickname=user.nickname)
-    try:
-        query, session = await database.query(User, User.email, user.email)
-        db_response = await database.create(query, session, new_user)
-    except Exception as ex:
-        raise ex
-    else:
-        return db_response
+    async with await database.async_session_generator() as session:
+        try:
+            db_resp = await database.query(session, User, User.email, user.email)
+            await database.create(session, db_resp, new_user)
+        except Exception as ex:
+            raise ex
+        else:
+            return {'User': f'Created user {new_user.email}'}
 
 
 @router.put('/user/update', response_model_exclude_unset=True)
