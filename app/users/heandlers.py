@@ -19,34 +19,28 @@ async def index():
 @router.post('/user/login', name='login to service', status_code=202)
 async def login(user_form: UserLoginForm = Body(..., embed=True), database=Depends(Database)):
     """Login to user account"""
-    async with database as session:
-        query = select(User).where(User.email == user_form.email)
-        result = await database.execute(query)
-        user = result.scalar()
-        if user is None or await get_password_hash(user_form.password) != user.password:
-            return {'error': 'Email or password invalid'}
+    user, session = await database.query(User, User.email, user_form.email)
+    if user is None or await get_password_hash(user_form.password) != user.password:
+        return {'error': 'Email or password invalid'}
+    await session.close()
 
-        q = select(AuthToken).where(AuthToken.user_id == user.user_id)
-        res = await database.execute(q)
-        user_token = res.scalar()
+    user_token, auth_session = await database.query(AuthToken, AuthToken.user_id, user.user_id)
 
-        session_token = AuthToken(token=await get_session_token(user.user_id), user_id=user.user_id)
+    session_token = AuthToken(token=await get_session_token(user.user_id), user_id=user.user_id)
 
-        if user_token.token is not None:
-            try:
-                session.delete(user_token)
-                await session.commit()
-            except Exception as _ex:
-                raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
-            else:
-                return {'session_token': f'{session_token.token}'}
+    if user_token.token is not None:
         try:
-            session.add(session_token)
-            await session.commit()
+            await database.delete(user_token, auth_session)
         except Exception as _ex:
-            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
+            raise _ex
         else:
             return {'session_token': f'{session_token.token}'}
+    try:
+        await database.add(auth_session, session_token)
+    except Exception as _ex:
+        raise _ex
+    else:
+        return {'session_token': f'{session_token.token}'}
 
 
 @router.post('/user/logout', name='logout from service', status_code=202)
@@ -147,4 +141,4 @@ async def delete_user(old_pwd: str = Body(..., embed=True), token: AuthToken = D
 
             return {'error': 'Wrong old password!'}
 
-        return {'answer': 'This user does not exist'}
+

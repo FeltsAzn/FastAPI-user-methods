@@ -25,35 +25,52 @@ class Database:
         return result, s
 
     @staticmethod
+    async def add(session, data):
+        try:
+            session.add(data)
+            await session.commit()
+        except Exception as _ex:
+            await session.rollback()
+            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
+        else:
+            await session.close()
+            return True
+        finally:
+            await session.close()
+
+    @staticmethod
     async def create(db_response, session, new_data):
         if db_response:
+            await session.close()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Email already exists')
         try:
             session.add(new_data)
             await session.commit()
         except Exception as _ex:
-            session.rollback()
-            session.close()
+            await session.rollback()
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
         else:
-            session.close()
+            await session.close()
             return {'User': f'Created user {new_data.email}'}
+        finally:
+            await session.close()
 
     @staticmethod
     async def delete(db_response, session):
         if db_response:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Email already exists')
+            await session.close()
+            return {'detail': 'This user does not exist'}
         try:
             session.delete(db_response)
             await session.commit()
         except Exception as _ex:
             await session.rollback()
-            session.close()
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
         else:
-
-            session.close()
+            await session.close()
             return True
+        finally:
+            await session.close()
 
 
 
