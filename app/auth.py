@@ -4,20 +4,24 @@ from starlette import status
 from datetime import datetime
 
 from app.models import AuthToken
-from app.db_methods.methods import get_session
+from app.db_methods.methods import Database #get_session
 
 
-async def check_auth_token(token: str, database=Depends(get_session)):
-    async with database as session:
-        query = select(AuthToken).where(AuthToken.token == token)
-        result = await database.execute(query)
-        auth_token = result.scalar()
-        if auth_token is not None:
-            date = await token_time_validity(auth_token.created_date)
+async def check_auth_token(token: str, database=Depends(Database)):
+    start_db_session = database.async_session_generator()
+
+    async with await start_db_session as session:
+        db_response = await database.query(session, AuthToken, AuthToken.token, token)
+
+        if db_response is not None:
+            date = await token_time_validity(db_response.created_date)
             if date:
-                return auth_token
+                return db_response
+            try:
+                await database.delete_data(session, db_response)
+            except Exception as ex:
+                raise ex
             else:
-                await session.delete(auth_token)
                 raise HTTPException(status_code=status.HTTP_423_LOCKED, detail='Auth token expired')
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Auth is failed')
 
