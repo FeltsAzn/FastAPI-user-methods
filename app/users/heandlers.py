@@ -88,13 +88,15 @@ async def create_user(user: CreateUserForm = Body(..., embed=True), database=Dep
     Use only latin letters"""
     new_user = User(
         email=user.email,
-        password=get_password_hash(user.password),
+        password=await get_password_hash(user.password),
         nickname=user.nickname)
-    db_response = await database.create(user, new_user)
-    return db_response
-
-
-
+    try:
+        query, session = await database.query(User, User.email, user.email)
+        db_response = await database.create(query, session, new_user)
+    except Exception as ex:
+        raise ex
+    else:
+        return db_response
 
 
 @router.put('/user/update', response_model_exclude_unset=True)

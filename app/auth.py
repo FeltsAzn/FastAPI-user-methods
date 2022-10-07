@@ -9,18 +9,13 @@ from app.db_methods.methods import Database #get_session
 
 async def check_auth_token(token: str, database=Depends(Database)):
     db_resp, session = database.query(AuthToken, AuthToken.token, token)
-    async with database as session:
-        query = select(AuthToken).where(AuthToken.token == token)
-        result = await database.execute(query)
-        auth_token = result.scalar()
-        if auth_token is not None:
-            date = await token_time_validity(auth_token.created_date)
-            if date:
-                return auth_token
-            else:
-                await session.delete(auth_token)
-                raise HTTPException(status_code=status.HTTP_423_LOCKED, detail='Auth token expired')
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Auth is failed')
+    if db_resp is not None:
+        date = await token_time_validity(db_resp.created_date)
+        if date:
+            return db_resp
+        await session.delete(db_resp)
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail='Auth token expired')
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Auth is failed')
 
 
 async def token_time_validity(auth_token_time: datetime.now()):
