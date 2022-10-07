@@ -18,7 +18,7 @@ async def check_auth_token(token: str, database=Depends(Database)):
             if date:
                 return db_response
             try:
-                await database.delete_data(db_response, session)
+                await database.delete_data(session, db_response)
             except Exception as ex:
                 raise ex
             else:

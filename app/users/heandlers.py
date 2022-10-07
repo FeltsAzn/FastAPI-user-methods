@@ -41,16 +41,15 @@ async def login(user_form: UserLoginForm = Body(..., embed=True), database=Depen
 @router.post('/user/logout', name='logout from service', status_code=202)
 async def logout(token: AuthToken = Depends(check_auth_token), database=Depends(Database)):
     """Removing a user from the database by authorization token (to protect against removal from outside)"""
-    async with database as session:
-        query = select(User).where(User.user_id == token.user_id)
-        result = await database.execute(query)
-        user = result.scalar()
+    start_db_session = database.async_session_generator()
+
+    async with await start_db_session as session:
+        user = await database.query(session, User, User.user_id, token.user_id)
         email = user.email
         try:
-            session.delete(token)
-            await session.commit()
+            await database.delete_data(session, token)
         except Exception as _ex:
-            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
+            raise _ex
         else:
             return {f'user {email}: Logout'}
 

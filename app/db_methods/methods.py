@@ -4,9 +4,6 @@ from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
 from starlette import status
 from sqlalchemy import select
-from app.models import User
-
-from app.users.schemas import CreateUserForm
 
 
 class Database:
