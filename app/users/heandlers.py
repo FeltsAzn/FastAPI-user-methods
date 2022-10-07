@@ -3,10 +3,9 @@ from starlette import status
 from fastapi import APIRouter, Body, Depends, HTTPException
 from app.users.schemas import UserLoginForm, CreateUserForm, UpdateUserForm
 from app.models import User, AuthToken
-from app.utils import get_password_hash, get_session_token
+from app.utils import get_password_hash, get_session_token, check_new_info
 from app.auth import check_auth_token
-from app.db_methods.methods import Database # get_session
-from sqlalchemy import select
+from app.db_methods.methods import Database
 
 router = APIRouter()
 
@@ -41,9 +40,8 @@ async def login(user_form: UserLoginForm = Body(..., embed=True), database=Depen
 @router.post('/user/logout', name='logout from service', status_code=202)
 async def logout(token: AuthToken = Depends(check_auth_token), database=Depends(Database)):
     """Removing a user from the database by authorization token (to protect against removal from outside)"""
-    start_db_session = database.async_session_generator()
-
-    async with await start_db_session as session:
+    start_db_session = await database.async_session_generator()
+    async with start_db_session as session:
         user = await database.query(session, User, User.user_id, token.user_id)
         email = user.email
         try:
@@ -57,10 +55,9 @@ async def logout(token: AuthToken = Depends(check_auth_token), database=Depends(
 @router.post('/user/info')
 async def get_user(token: AuthToken = Depends(check_auth_token), database=Depends(Database)):
     """Getting user information by his token"""
-    async with database:
-        query = select(User).where(User.user_id == token.user_id)
-        result = await database.execute(query)
-        user = result.scalar()
+    start_db_session = await database.async_session_generator()
+    async with start_db_session as session:
+        user = database.query(session, User, User.user_id, token.user_id)
         if user:
             return {'id': user.user_id, 'email': user.email, 'nickname': user.nickname}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
@@ -78,7 +75,8 @@ async def create_user(user: CreateUserForm = Body(..., embed=True), database=Dep
         email=user.email,
         password=await get_password_hash(user.password),
         nickname=user.nickname)
-    async with await database.async_session_generator() as session:
+    start_db_session = await database.async_session_generator()
+    async with start_db_session as session:
         try:
             db_resp = await database.query(session, User, User.email, user.email)
             await database.create(session, db_resp, new_user)
@@ -93,22 +91,15 @@ async def update_user(new_user: UpdateUserForm, old_pwd: str = Body(..., embed=T
                       token: AuthToken = Depends(check_auth_token), database=Depends(Database)):
     """Update account information. The correctness of the password and email address is also checked.
     Parameters are optional, can be changed by choice"""
-    async with database as session:
-        query = select(User).where(User.user_id == token.user_id)
-        result = await database.execute(query)
-        user = result.scalar()
-        if user.password == await get_password_hash(old_pwd):
-            if new_user.email:
-                user.email = new_user.email
-            if new_user.password:
-                user.password = await get_password_hash(new_user.password)
-            if new_user.nickname:
-                user.nickname = new_user.nickname
+    start_db_session = await database.async_session_generator()
+    async with start_db_session as session:
+        user = await database.query(session, User, User.user_id, token.user_id)
+        update_user = await check_new_info(user, new_user, old_pwd)
+        if update_user:
             try:
-                session.add(user)
-                await session.commit()
+                await database.add(session, update_user)
             except Exception as _ex:
-                raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
+                raise _ex
             else:
                 return {'status': "Successfully"}
         return {'error': 'Wrong old password!'}
@@ -118,19 +109,18 @@ async def update_user(new_user: UpdateUserForm, old_pwd: str = Body(..., embed=T
 async def delete_user(old_pwd: str = Body(..., embed=True), token: AuthToken = Depends(check_auth_token),
                       database=Depends(Database)):
     """Removing a user from the database by authorization token (to protect against removal from outside)"""
-    async with database as session:
-        query = select(User).where(User.user_id == token.user_id)
-        result = await database.execute(query)
-        user = result.scalar()
+    start_db_session = await database.async_session_generator()
+    async with start_db_session as session:
+
+        user = database.query(session, User, User.user_id, token.user_id)
         if user is not None:
             email = user.email
             if await get_password_hash(old_pwd) == user.password:
                 try:
-                    session.delete(token)
-                    session.delete(user)
-                    await session.commit()
+                    await database.delete_data(session, token)
+                    await database.delete_data(session, user)
                 except Exception as _ex:
-                    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_ex)
+                    raise _ex
                 else:
                     return {f'user {email}: Deleted'}
 
