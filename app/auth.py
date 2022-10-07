@@ -4,10 +4,11 @@ from starlette import status
 from datetime import datetime
 
 from app.models import AuthToken
-from app.db_methods.methods import get_session
+from app.db_methods.methods import Database #get_session
 
 
-async def check_auth_token(token: str, database=Depends(get_session)):
+async def check_auth_token(token: str, database=Depends(Database)):
+    db_resp, session = database.query(AuthToken, AuthToken.token, token)
     async with database as session:
         query = select(AuthToken).where(AuthToken.token == token)
         result = await database.execute(query)
