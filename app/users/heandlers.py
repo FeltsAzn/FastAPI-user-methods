@@ -1,8 +1,7 @@
-import uuid  # для генерации токена
 from starlette import status
 from fastapi import APIRouter, Body, Depends, HTTPException
 from app.users.schemas import UserLoginForm, CreateUserForm, UpdateUserForm
-from app.models import User, AuthToken
+from app.users.models import User, AuthToken
 from app.utils import get_password_hash, get_session_token, check_new_info
 from app.auth import check_auth_token
 from app.db_methods.methods import Database

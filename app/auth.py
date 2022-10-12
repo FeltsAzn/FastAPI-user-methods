@@ -1,13 +1,12 @@
 from fastapi import Depends, HTTPException
-from sqlalchemy.future import select
 from starlette import status
 from datetime import datetime
 
-from app.models import AuthToken
+from app.users.models import AuthToken
 from app.db_methods.methods import Database #get_session
 
 
-async def check_auth_token(token: str, database=Depends(Database)):
+async def check_auth_token(token: str, database=Depends(Database)) -> AuthToken:
     start_db_session = database.async_session_generator()
 
     async with await start_db_session as session:
@@ -26,7 +25,7 @@ async def check_auth_token(token: str, database=Depends(Database)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Auth is failed')
 
 
-async def token_time_validity(auth_token_time: datetime.now()):
+async def token_time_validity(auth_token_time: datetime.now()) -> bool:
     """Check time for token in database"""
     time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     time_check = int(time_now[11:13])*60 + int(time_now[14:16])

@@ -1,3 +1,5 @@
+from app.users.models import User, AuthToken
+
 from app.config import DATABASE_URL
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -14,14 +16,14 @@ class Database:
         return async_session()
 
     @staticmethod
-    async def query(session, table, first_arg, second_arg):
+    async def query(session, table, first_arg, second_arg) -> User | AuthToken:
         query = select(table).where(first_arg == second_arg)
         database_response = await session.execute(query)
         result = database_response.scalar()
         return result
 
     @staticmethod
-    async def add(session, data):
+    async def add(session, data) -> bool:
         try:
             session.add(data)
             await session.commit()
@@ -32,7 +34,7 @@ class Database:
             return True
 
     @staticmethod
-    async def create(session, db_response, new_data):
+    async def create(session, db_response, new_data) -> bool:
         if db_response:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Email already exists')
         try:
@@ -45,7 +47,7 @@ class Database:
             return True
 
     @staticmethod
-    async def delete_data(session, db_response):
+    async def delete_data(session, db_response) -> dict | bool:
         if db_response is None:
             return {'detail': 'This user does not exist'}
         try:

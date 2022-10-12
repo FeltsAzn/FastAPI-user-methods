@@ -1,10 +1,9 @@
 import hashlib
 import time
-from typing import Union
 
 import jwt
 from app.config import SECRET_KEY, ALGORITHM, JWT_KEY
-from app.models import User
+from app.users.models import User
 from app.users.schemas import UpdateUserForm
 
 
@@ -20,7 +19,7 @@ async def get_session_token(user_id: str) -> str:
     return jwt.encode(payload, key=JWT_KEY, algorithm=ALGORITHM)
 
 
-async def check_new_info(user: User, new_user: UpdateUserForm, old_pwd: str) -> Union[User, bool]:
+async def check_new_info(user: User, new_user: UpdateUserForm, old_pwd: str) -> User | bool:
     old_pwd = await get_password_hash(old_pwd)
     if user.password == old_pwd:
         if new_user.email:
