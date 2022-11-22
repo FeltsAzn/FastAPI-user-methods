@@ -18,7 +18,7 @@ ___________________________________________________
 
 Скопируйте через terminal репозиторий:
 ```bash
-git clone https://github.com/FeltsAzn/website-parser-with-gui
+git clone https://github.com/FeltsAzn/FastAPI-user-methods
 ```
 
 #### Если вы работаете через редакторы кода `vim`, `nano`, `notepad` и другие:
@@ -93,7 +93,7 @@ ___________________________________________________
 
 Copy via terminal repository:
 ```bash
-git clone https://github.com/FeltsAzn/website-parser-with-gui
+git clone https://github.com/FeltsAzn/FastAPI-user-methods
 ```
 
 #### If you are working with code editors `vim`, `nano`, `notepad` and others:
