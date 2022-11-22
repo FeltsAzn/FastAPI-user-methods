@@ -53,9 +53,10 @@ touch .env
 
 Содержание файла `.env`
 ```sh
-BOT_TOKEN = <Токен бота от BotFather>
-ADMIN_ID = <telegram ID пользователя, кто будет отправлять файлы>
-ADMIN_NAME = <Имя пользователя отвечающего за поддержку>
+DATABASE = postgresql+asyncpg://{пользователь}:{пароль}@localhost/postgres
+SECRET_KEY = {секретный ключ}
+JWT_KEY = {секретная фраза для зашифрованная в hs256 (или любая другая шифровка)}
+JWT_ALGORITHM = 'HS256'
 ```
 
 #### Docker контейнер
@@ -127,9 +128,10 @@ Create a ***.env*** file in the ***bot*** project folder
 
 Contents of the `.env` file
 ```sh
-BOT_TOKEN = <Bot Token from BotFather>
-ADMIN_ID = <telegram ID of the user who will send files>
-ADMIN_NAME = <Support username>
+DATABASE = postgresql+asyncpg://{user}:{passsword}@localhost/postgres
+SECRET_KEY = {secretkey}
+JWT_KEY = {secret phrase with hs256 (or another) encrypt}
+JWT_ALGORITHM = 'HS256'
 ```
 
 #### Docker container
